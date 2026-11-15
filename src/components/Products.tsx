@@ -80,14 +80,32 @@ export function Products({ lang, refreshTrigger }: ProductsProps) {
   const isRtl = lang === "ar";
   const [products, setProducts] = useState<ApiProduct[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
+    setLoadError(false);
     fetchProducts()
-      .then(setProducts)
-      .catch(() => setProducts([]))
-      .finally(() => setLoading(false));
-  }, [refreshTrigger]);
+      .then((data) => {
+        if (!cancelled) setProducts(data);
+      })
+      .catch((error) => {
+        console.error("Failed to load Firestore products:", error);
+        if (!cancelled) {
+          setProducts([]);
+          setLoadError(true);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshTrigger, retryCount]);
 
   return (
     <section
@@ -123,6 +141,21 @@ export function Products({ lang, refreshTrigger }: ProductsProps) {
                 </div>
               </div>
             ))}
+          </div>
+        ) : loadError ? (
+          <div className="text-center py-16 text-gray-500">
+            <div className="text-sm mb-3">
+              {isRtl
+                ? "تعذّر تحميل المنتجات. تحقق من اتصال Firestore وصلاحيات القراءة."
+                : "Could not load products. Check the Firestore connection and read permissions."}
+            </div>
+            <button
+              type="button"
+              onClick={() => setRetryCount((count) => count + 1)}
+              className="text-rose-600 hover:text-rose-700 font-semibold text-sm underline underline-offset-4"
+            >
+              {isRtl ? "إعادة المحاولة" : "Try again"}
+            </button>
           </div>
         ) : products.length === 0 ? (
           <div className="text-center py-16 text-gray-400">
